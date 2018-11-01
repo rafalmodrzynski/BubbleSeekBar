@@ -129,6 +129,8 @@ public class BubbleSeekBar extends View {
     private float mPreSecValue; // previous SectionValue
     private BubbleConfigBuilder mConfigBuilder; // config attributes
 
+    private BubbleValueToTextConverter mBubbleValueToTextConverter;
+
     public BubbleSeekBar(Context context) {
         this(context, null);
     }
@@ -211,8 +213,8 @@ public class BubbleSeekBar extends View {
 
         // init BubbleView
         mBubbleView = new BubbleView(context);
-        mBubbleView.setProgressText(isShowProgressInFloat ?
-                String.valueOf(getProgressFloat()) : String.valueOf(getProgress()));
+        mBubbleValueToTextConverter = new DefaultBubbleValueToTextConverter();
+        mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(this, getProgress(), getProgressFloat(), isShowProgressInFloat));
 
         mLayoutParams = new WindowManager.LayoutParams();
         mLayoutParams.gravity = Gravity.START | Gravity.TOP;
@@ -319,28 +321,10 @@ public class BubbleSeekBar extends View {
         mPaint.setTextSize(mBubbleTextSize);
 
         // 计算滑到两端气泡里文字需要显示的宽度，比较取最大值为气泡的半径
-        String text;
-        if (isShowProgressInFloat) {
-            text = float2String(isRtl ? mMax : mMin);
-        } else {
-            if (isRtl) {
-                text = isFloatType ? float2String(mMax) : String.valueOf((int) mMax);
-            } else {
-                text = isFloatType ? float2String(mMin) : String.valueOf((int) mMin);
-            }
-        }
+        String text = mBubbleValueToTextConverter.getLongestText(this, mMin, mMax, isShowProgressInFloat, isRtl, isFloatType);
         mPaint.getTextBounds(text, 0, text.length(), mRectText);
         int w1 = (mRectText.width() + mTextSpace * 2) >> 1;
 
-        if (isShowProgressInFloat) {
-            text = float2String(isRtl ? mMin : mMax);
-        } else {
-            if (isRtl) {
-                text = isFloatType ? float2String(mMin) : String.valueOf((int) mMin);
-            } else {
-                text = isFloatType ? float2String(mMax) : String.valueOf((int) mMax);
-            }
-        }
         mPaint.getTextBounds(text, 0, text.length(), mRectText);
         int w2 = (mRectText.width() + mTextSpace * 2) >> 1;
 
@@ -608,9 +592,9 @@ public class BubbleSeekBar extends View {
 
             if (isFloatType || (isShowProgressInFloat && mSectionTextPosition == TextPosition.BOTTOM_SIDES &&
                     mProgress != mMin && mProgress != mMax)) {
-                canvas.drawText(String.valueOf(getProgressFloat()), mThumbCenterX, y_, mPaint);
+                canvas.drawText(mBubbleValueToTextConverter.convertValueToText(this, getProgress(), getProgressFloat(), isShowProgressInFloat), mThumbCenterX, y_, mPaint);
             } else {
-                canvas.drawText(String.valueOf(getProgress()), mThumbCenterX, y_, mPaint);
+                canvas.drawText(mBubbleValueToTextConverter.convertValueToText(this, getProgress(), getProgressFloat(), isShowProgressInFloat), mThumbCenterX, y_, mPaint);
             }
         }
 
@@ -760,8 +744,7 @@ public class BubbleSeekBar extends View {
                             mBubbleCenterRawX = calculateCenterRawXofBubbleView();
                             mLayoutParams.x = (int) (mBubbleCenterRawX + 0.5f);
                             mWindowManager.updateViewLayout(mBubbleView, mLayoutParams);
-                            mBubbleView.setProgressText(isShowProgressInFloat ?
-                                    String.valueOf(getProgressFloat()) : String.valueOf(getProgress()));
+                            mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(this, getProgress(), getProgressFloat(), isShowProgressInFloat));
                         } else {
                             processProgress();
                         }
@@ -891,6 +874,17 @@ public class BubbleSeekBar extends View {
             }
         }
 
+        mBubbleView.setAlpha(0);
+        mBubbleView.setVisibility(VISIBLE);
+        mBubbleView.animate().alpha(1f).setDuration(isTouchToSeek ? 0 : mAnimDuration)
+                .setListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationStart(Animator animation) {
+                        mWindowManager.addView(mBubbleView, mLayoutParams);
+                    }
+                }).start();
+        mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(this, getProgress(), getProgressFloat(), isShowProgressInFloat));
+
         if (touchedX - x <= mSectionOffset / 2f) {
             return x;
         } else {
@@ -935,8 +929,7 @@ public class BubbleSeekBar extends View {
                         mBubbleCenterRawX = calculateCenterRawXofBubbleView();
                         mLayoutParams.x = (int) (mBubbleCenterRawX + 0.5f);
                         mWindowManager.updateViewLayout(mBubbleView, mLayoutParams);
-                        mBubbleView.setProgressText(isShowProgressInFloat ?
-                                String.valueOf(getProgressFloat()) : String.valueOf(getProgress()));
+                        mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(BubbleSeekBar.this, getProgress(), getProgressFloat(), isShowProgressInFloat));
                     } else {
                         processProgress();
                     }
@@ -1019,8 +1012,7 @@ public class BubbleSeekBar extends View {
                         mWindowManager.addView(mBubbleView, mLayoutParams);
                     }
                 }).start();
-        mBubbleView.setProgressText(isShowProgressInFloat ?
-                String.valueOf(getProgressFloat()) : String.valueOf(getProgress()));
+        mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(BubbleSeekBar.this, getProgress(), getProgressFloat(), isShowProgressInFloat));
     }
 
     /**
@@ -1217,7 +1209,6 @@ public class BubbleSeekBar extends View {
             }
         }
 
-        isShowThumbText = false;
         requestLayout();
         invalidate();
     }
@@ -1258,6 +1249,7 @@ public class BubbleSeekBar extends View {
         mAlwaysShowBubbleDelay = builder.alwaysShowBubbleDelay;
         isHideBubble = builder.hideBubble;
         isRtl = builder.rtl;
+        mBubbleValueToTextConverter = builder.bubbleValueToTextConverter;
 
         initConfigByPriority();
         calculateRadiusOfBubble();
@@ -1311,6 +1303,7 @@ public class BubbleSeekBar extends View {
         mConfigBuilder.alwaysShowBubbleDelay = mAlwaysShowBubbleDelay;
         mConfigBuilder.hideBubble = isHideBubble;
         mConfigBuilder.rtl = isRtl;
+        mConfigBuilder.bubbleValueToTextConverter = mBubbleValueToTextConverter;
 
         return mConfigBuilder;
     }
@@ -1332,8 +1325,7 @@ public class BubbleSeekBar extends View {
             super.onRestoreInstanceState(bundle.getParcelable("save_instance"));
 
             if (mBubbleView != null) {
-                mBubbleView.setProgressText(isShowProgressInFloat ?
-                        String.valueOf(getProgressFloat()) : String.valueOf(getProgress()));
+                mBubbleView.setProgressText(mBubbleValueToTextConverter.convertValueToText(BubbleSeekBar.this, getProgress(), getProgressFloat(), isShowProgressInFloat));
             }
             setProgress(mProgress);
 
@@ -1404,6 +1396,16 @@ public class BubbleSeekBar extends View {
          */
         @NonNull
         SparseArray<String> onCustomize(int sectionCount, @NonNull SparseArray<String> array);
+    }
+
+    /**
+     * Customize the value text that is displayed inside the bubble. Works fine with maximal five characters
+     */
+    public interface BubbleValueToTextConverter {
+        String convertValueToText(BubbleSeekBar bubbleSeekBar, int progress, float progressFloat, Boolean isShowProgressInFloat);
+
+        String getLongestText(BubbleSeekBar bubbleSeekBar, float min, float max, boolean isShowProgressInFloat, boolean isRtl, boolean isFloatType);
+
     }
 
     /***********************************************************************************************
