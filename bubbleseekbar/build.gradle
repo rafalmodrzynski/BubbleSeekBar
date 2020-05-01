@@ -3,12 +3,12 @@ apply plugin: 'com.android.library'
 def VERSION_NAME = "3.19"
 
 android {
-    compileSdkVersion 27
-    buildToolsVersion '28.0.3'
+    compileSdkVersion 29
+    buildToolsVersion '29.0.3'
 
     defaultConfig {
         minSdkVersion 16
-        targetSdkVersion 27
+        targetSdkVersion 29
         versionCode 36
         versionName VERSION_NAME
     }
@@ -23,5 +23,5 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    compileOnly 'com.android.support:appcompat-v7:27.1.1'
+    compileOnly 'androidx.appcompat:appcompat:1.1.0'
 }
